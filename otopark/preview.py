@@ -133,13 +133,22 @@ class LivePreview:
         self._server = ThreadingHTTPServer(("0.0.0.0", port), _make_handler(self._stream))
         self._server.daemon_threads = True
         self._port = port
+        # Çizim ve JPEG sıkıştırma ayrı iş parçacığında yapılır ki plaka okuma
+        # döngüsü yavaşlamasın. Yetişemezse eski kareler atlanır.
+        self._pending: tuple[Frame, FrameAnalysis, OverlayInfo] | None = None
+        self._pending_ready = threading.Condition()
+        self._running = True
 
     def __enter__(self) -> "LivePreview":
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        threading.Thread(target=self._render_loop, daemon=True).start()
         logger.info("Canlı önizleme: http://<pi-ip-adresi>:%d", self._port)
         return self
 
     def __exit__(self, *_exc_info) -> None:
+        with self._pending_ready:
+            self._running = False
+            self._pending_ready.notify_all()
         self._stream.close()
         self._server.shutdown()
         self._server.server_close()
@@ -154,10 +163,22 @@ class LivePreview:
         )
         if not self._stream.has_viewers():
             return  # İzleyen yoksa çizip sıkıştırmaya gerek yok
-        image = draw_overlay(frame, analysis, info)
-        ok, jpeg = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if ok:
-            self._stream.publish(jpeg.tobytes())
+        with self._pending_ready:
+            self._pending = (frame, analysis, info)
+            self._pending_ready.notify()
+
+    def _render_loop(self) -> None:
+        while True:
+            with self._pending_ready:
+                self._pending_ready.wait_for(lambda: self._pending or not self._running)
+                if not self._running:
+                    return
+                frame, analysis, info = self._pending
+                self._pending = None
+            image = draw_overlay(frame, analysis, info)
+            ok, jpeg = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if ok:
+                self._stream.publish(jpeg.tobytes())
 
 
 class _FrameStream:

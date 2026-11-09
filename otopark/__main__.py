@@ -60,7 +60,8 @@ def run(
             log_event(event)
         if observer is not None:
             observer(frame, analysis, process_seconds)
-        time.sleep(interval_seconds)
+        if interval_seconds > 0:
+            time.sleep(interval_seconds)
 
 
 def parse_args() -> argparse.Namespace:

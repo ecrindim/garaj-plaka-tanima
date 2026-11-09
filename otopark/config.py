@@ -14,7 +14,9 @@ class Settings:
 
     # Kamera
     frame_size: tuple[int, int] = (1280, 720)
-    frame_interval_seconds: float = 0.2
+    # Kareler arası ek bekleme. 0 = olabildiğince hızlı; işlemciyi
+    # rahatlatmak gerekirse artırılabilir (ör. 0.1).
+    frame_interval_seconds: float = 0.0
 
     # Canlı önizleme (python -m otopark --preview)
     preview_port: int = 8000
