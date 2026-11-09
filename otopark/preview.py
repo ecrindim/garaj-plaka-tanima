@@ -17,6 +17,7 @@ import numpy as np
 
 from otopark.camera import Frame
 from otopark.models import FrameAnalysis, GateEvent, Reading, ReadStatus
+from otopark.plate_reader import Region, region_to_pixels
 from otopark.plate_validator import format_for_display
 
 logger = logging.getLogger("otopark.preview")
@@ -32,6 +33,7 @@ _COLORS = {
     ReadStatus.CONFIRMED: (80, 220, 80),
 }
 _WHITE = (255, 255, 255)
+_REGION_COLOR = (255, 140, 0)  # mavi
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
@@ -59,6 +61,7 @@ class OverlayInfo:
     process_ms: float
     votes_required: int
     recent_events: list[GateEvent]
+    region: Region | None = None
 
 
 def describe(reading: Reading, votes_required: int) -> str:
@@ -74,10 +77,19 @@ def describe(reading: Reading, votes_required: int) -> str:
 
 def draw_overlay(frame: Frame, analysis: FrameAnalysis, info: OverlayInfo) -> np.ndarray:
     image = np.ascontiguousarray(frame[:, :, :3]).copy()
+    if info.region is not None:
+        _draw_region(image, info.region)
     for reading in analysis.readings:
         _draw_box(image, reading, info.votes_required)
     _draw_panel(image, analysis, info)
     return image
+
+
+def _draw_region(image: np.ndarray, region: Region) -> None:
+    height, width = image.shape[:2]
+    x1, y1, x2, y2 = region_to_pixels(region, width, height)
+    cv2.rectangle(image, (x1, y1), (x2 - 1, y2 - 1), _REGION_COLOR, 2)
+    cv2.putText(image, "Okuma bolgesi", (x1 + 6, y2 - 10), _FONT, 0.55, _REGION_COLOR, 1, cv2.LINE_AA)
 
 
 def _draw_box(image: np.ndarray, reading: Reading, votes_required: int) -> None:
@@ -125,8 +137,11 @@ def _draw_panel(image: np.ndarray, analysis: FrameAnalysis, info: OverlayInfo) -
 class LivePreview:
     """Her işlenen kareyi çizer ve MJPEG olarak HTTP üzerinden yayınlar."""
 
-    def __init__(self, port: int, votes_required: int, max_events: int = 5) -> None:
+    def __init__(
+        self, port: int, votes_required: int, region: Region | None = None, max_events: int = 5
+    ) -> None:
         self._votes_required = votes_required
+        self._region = region
         self._fps = FpsCounter()
         self._events: deque[GateEvent] = deque(maxlen=max_events)
         self._stream = _FrameStream()
@@ -160,6 +175,7 @@ class LivePreview:
             process_ms=process_seconds * 1000,
             votes_required=self._votes_required,
             recent_events=list(self._events),
+            region=self._region,
         )
         if not self._stream.has_viewers():
             return  # İzleyen yoksa çizip sıkıştırmaya gerek yok

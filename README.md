@@ -32,6 +32,14 @@ Plaka kutularının renkleri: sarı = doğrulanıyor (ör. 2/3), yeşil = onayla
 kırmızı = geçersiz format, gri = düşük güven. Kimse izlemiyorken görüntü işlenmez.
 Port `config.py` içindeki `preview_port` ayarıdır. Yayın aynı ağdaki herkese açıktır.
 
+### Hız ayarları
+
+- `detector_model`: Varsayılan `yolo-v9-t-256` hızlıdır. Uzaktaki küçük plakalar
+  kaçıyorsa `yolo-v9-t-384-license-plate-end2end` kullanın.
+- `region`: Sadece araçların geçtiği bölgeyi işler, ör. `(0.25, 0.4, 0.75, 1.0)`.
+  Değerler görüntüye oranladır (sol, üst, sağ, alt). Önizlemede mavi çerçeveyle görünür.
+  Bölge daraldıkça plaka modele daha büyük gider; 256 modelle birlikte kullanın.
+
 Ayarlar `otopark/config.py` içindedir. Kayıtlar `otopark.db` (SQLite) dosyasında tutulur.
 
 ## Mimari

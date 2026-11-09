@@ -12,7 +12,7 @@ from otopark.gate_service import GateService
 from otopark.models import FrameAnalysis, GateEvent
 from otopark.plate_confirmer import PlateConfirmer
 from otopark.plate_monitor import PlateMonitor
-from otopark.plate_reader import FastAlprReader
+from otopark.plate_reader import FastAlprReader, PlateReader, RegionReader
 from otopark.plate_validator import TurkishPlateValidator, format_for_display
 from otopark.visit_repository import VisitRepository
 
@@ -20,8 +20,11 @@ logger = logging.getLogger("otopark")
 
 
 def build_monitor(settings: Settings, repository: VisitRepository) -> PlateMonitor:
+    reader: PlateReader = FastAlprReader(settings.detector_model, settings.ocr_model)
+    if settings.region is not None:
+        reader = RegionReader(reader, settings.region)
     return PlateMonitor(
-        reader=FastAlprReader(settings.detector_model, settings.ocr_model),
+        reader=reader,
         validator=TurkishPlateValidator(),
         confirmer=PlateConfirmer(
             settings.votes_required,
@@ -87,7 +90,9 @@ def main() -> None:
             if args.preview:
                 from otopark.preview import LivePreview
 
-                preview = LivePreview(settings.preview_port, settings.votes_required)
+                preview = LivePreview(
+                    settings.preview_port, settings.votes_required, settings.region
+                )
                 observer = stack.enter_context(preview).show
             logger.info("Sistem çalışıyor. Durdurmak için Ctrl+C.")
             run(camera, monitor, settings.frame_interval_seconds, observer)

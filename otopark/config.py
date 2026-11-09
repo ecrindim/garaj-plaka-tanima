@@ -9,7 +9,8 @@ class Settings:
     database_path: Path = Path("otopark.db")
 
     # Hazır eğitilmiş modeller (FastALPR)
-    detector_model: str = "yolo-v9-t-384-license-plate-end2end"
+    # 256 hızlıdır; uzaktaki küçük plakalar kaçıyorsa 384'e dönülebilir.
+    detector_model: str = "yolo-v9-t-256-license-plate-end2end"
     ocr_model: str = "cct-xs-v2-global-model"
 
     # Kamera
@@ -17,6 +18,11 @@ class Settings:
     # Kareler arası ek bekleme. 0 = olabildiğince hızlı; işlemciyi
     # rahatlatmak gerekirse artırılabilir (ör. 0.1).
     frame_interval_seconds: float = 0.0
+
+    # Sadece bu bölge işlenir: (sol, üst, sağ, alt), görüntü boyutuna oranla 0.0-1.0.
+    # Ör. (0.25, 0.4, 0.75, 1.0) = ortadaki yarı genişlik, alttaki %60.
+    # None = görüntünün tamamı. Önizlemede mavi çerçeveyle gösterilir.
+    region: tuple[float, float, float, float] | None = None
 
     # Canlı önizleme (python -m otopark --preview)
     preview_port: int = 8000
