@@ -16,6 +16,9 @@ class Settings:
     frame_size: tuple[int, int] = (1280, 720)
     frame_interval_seconds: float = 0.2
 
+    # Canlı önizleme (python -m otopark --preview)
+    preview_port: int = 8000
+
     # Okuma güvenilirliği
     min_confidence: float = 0.6
     votes_required: int = 3          # Plaka onaylanmadan önce kaç kez okunmalı

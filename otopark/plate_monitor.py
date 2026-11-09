@@ -1,8 +1,6 @@
-from collections.abc import Iterator
-
 from otopark.camera import Frame
 from otopark.gate_service import GateService
-from otopark.models import GateEvent
+from otopark.models import FrameAnalysis, GateEvent, PlateRead, Reading, ReadStatus
 from otopark.plate_confirmer import PlateConfirmer
 from otopark.plate_reader import PlateReader
 from otopark.plate_validator import TurkishPlateValidator
@@ -26,16 +24,27 @@ class PlateMonitor:
         self._min_confidence = min_confidence
 
     def process(self, frame: Frame) -> list[GateEvent]:
-        return [
-            self._gate.register(plate)
-            for plate in self._valid_plates(frame)
-            if self._confirmer.submit(plate)
-        ]
+        return self.analyze(frame).events
 
-    def _valid_plates(self, frame: Frame) -> Iterator[str]:
+    def analyze(self, frame: Frame) -> FrameAnalysis:
+        """Kareyi işler; olayların yanında her okumanın durumunu da döndürür."""
+        readings: list[Reading] = []
+        events: list[GateEvent] = []
         for read in self._reader.read(frame):
-            if read.confidence < self._min_confidence:
-                continue
-            plate = self._validator.parse(read.text)
-            if plate is not None:
-                yield plate
+            readings.append(self._evaluate(read, events))
+        return FrameAnalysis(readings, events)
+
+    def _evaluate(self, read: PlateRead, events: list[GateEvent]) -> Reading:
+        if read.confidence < self._min_confidence:
+            return Reading(read, ReadStatus.LOW_CONFIDENCE)
+
+        plate = self._validator.parse(read.text)
+        if plate is None:
+            return Reading(read, ReadStatus.INVALID)
+
+        if self._confirmer.submit(plate):
+            events.append(self._gate.register(plate))
+
+        if self._confirmer.is_confirmed(plate):
+            return Reading(read, ReadStatus.CONFIRMED, plate)
+        return Reading(read, ReadStatus.PENDING, plate, self._confirmer.votes(plate))

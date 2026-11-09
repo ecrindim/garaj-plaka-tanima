@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from otopark.gate_service import GateService
-from otopark.models import EventType, PlateRead
+from otopark.models import EventType, PlateRead, ReadStatus
 from otopark.plate_confirmer import PlateConfirmer
 from otopark.plate_monitor import PlateMonitor
 from otopark.plate_validator import TurkishPlateValidator
@@ -56,3 +56,26 @@ def test_monitor_filters_low_confidence_and_invalid_reads():
 
     assert [e.plate for e in events] == ["20ABC123"]
     assert len(repository.recent_visits()) == 1
+
+
+def test_analyze_reports_status_of_every_read():
+    gate, _, _ = make_gate(datetime(2026, 11, 9, 8, 0))
+    reader = FakeReader([PlateRead("20 ABC 123", 0.95), PlateRead("ABCDEF", 0.99)])
+    monitor = PlateMonitor(
+        reader=reader,
+        validator=TurkishPlateValidator(),
+        confirmer=PlateConfirmer(votes_required=2, window_seconds=10, quiet_period_seconds=10),
+        gate=gate,
+        min_confidence=0.6,
+    )
+
+    first = monitor.analyze(frame=None)
+    second = monitor.analyze(frame=None)
+
+    assert [(r.status, r.votes) for r in first.readings] == [
+        (ReadStatus.PENDING, 1),
+        (ReadStatus.INVALID, 0),
+    ]
+    assert first.events == []
+    assert second.readings[0].status is ReadStatus.CONFIRMED
+    assert [e.plate for e in second.events] == ["20ABC123"]

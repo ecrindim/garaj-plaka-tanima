@@ -18,9 +18,19 @@ pip install -r requirements.txt
 
 ```bash
 python -m otopark          # sistemi başlat
+python -m otopark --preview  # sistemi canlı görüntüyle başlat
 python -m otopark.report   # son kayıtları listele
 python -m pytest           # testleri çalıştır
 ```
+
+### Canlı önizleme
+
+`--preview` ile başlatınca tarayıcıda `http://<pi-ip-adresi>:8000` adresini açın
+(Pi'nin kendisinde `http://localhost:8000`; IP'yi `hostname -I` gösterir).
+Görüntüde FPS, kare başına işlem süresi, okunan plakalar ve son giriş/çıkışlar yer alır.
+Plaka kutularının renkleri: sarı = doğrulanıyor (ör. 2/3), yeşil = onaylandı,
+kırmızı = geçersiz format, gri = düşük güven. Kimse izlemiyorken görüntü işlenmez.
+Port `config.py` içindeki `preview_port` ayarıdır. Yayın aynı ağdaki herkese açıktır.
 
 Ayarlar `otopark/config.py` içindedir. Kayıtlar `otopark.db` (SQLite) dosyasında tutulur.
 
@@ -39,3 +49,4 @@ Kamera -> PlateReader (FastALPR) -> TurkishPlateValidator -> PlateConfirmer -> G
 | `gate_service.py`    | Onaylanan plakayı giriş mi çıkış mı diye karara bağlamak |
 | `visit_repository.py`| Kayıtları SQLite'ta saklamak                          |
 | `plate_monitor.py`   | Yukarıdakileri tek akışta birleştirmek                |
+| `preview.py`         | Canlı görüntüyü okuma bilgileriyle tarayıcıya yayınlamak |

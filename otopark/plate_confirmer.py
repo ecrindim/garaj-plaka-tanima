@@ -45,6 +45,14 @@ class PlateConfirmer:
         self._last_seen_after_confirm[plate] = now
         return True
 
+    def votes(self, plate: str) -> int:
+        """Onay bekleyen plakanın pencere içindeki okuma sayısı."""
+        return len(self._sightings.get(plate, ()))
+
+    def is_confirmed(self, plate: str) -> bool:
+        """Plaka onaylandı ve hâlâ sessiz süre içinde mi?"""
+        return plate in self._last_seen_after_confirm
+
     def _forget_stale(self, now: float) -> None:
         for sightings in self._sightings.values():
             while sightings and now - sightings[0] > self._window:

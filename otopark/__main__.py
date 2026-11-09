@@ -1,12 +1,15 @@
-"""Kullanım: python -m otopark"""
+"""Kullanım: python -m otopark [--preview]"""
 
+import argparse
 import logging
 import time
+from collections.abc import Callable
+from contextlib import ExitStack
 
-from otopark.camera import FrameSource, PiCameraSource
+from otopark.camera import Frame, FrameSource, PiCameraSource
 from otopark.config import Settings
 from otopark.gate_service import GateService
-from otopark.models import GateEvent
+from otopark.models import FrameAnalysis, GateEvent
 from otopark.plate_confirmer import PlateConfirmer
 from otopark.plate_monitor import PlateMonitor
 from otopark.plate_reader import FastAlprReader
@@ -39,22 +42,54 @@ def log_event(event: GateEvent) -> None:
     )
 
 
-def run(camera: FrameSource, monitor: PlateMonitor, interval_seconds: float) -> None:
+FrameObserver = Callable[[Frame, FrameAnalysis, float], None]
+
+
+def run(
+    camera: FrameSource,
+    monitor: PlateMonitor,
+    interval_seconds: float,
+    observer: FrameObserver | None = None,
+) -> None:
     while True:
-        for event in monitor.process(camera.capture()):
+        frame = camera.capture()
+        started = time.monotonic()
+        analysis = monitor.analyze(frame)
+        process_seconds = time.monotonic() - started
+        for event in analysis.events:
             log_event(event)
+        if observer is not None:
+            observer(frame, analysis, process_seconds)
         time.sleep(interval_seconds)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="python -m otopark")
+    parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Kamera görüntüsünü okuma bilgileriyle tarayıcıda canlı göster",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     settings = Settings()
     repository = VisitRepository(settings.database_path)
     try:
         monitor = build_monitor(settings, repository)
-        with PiCameraSource(settings.frame_size) as camera:
+        with ExitStack() as stack:
+            camera = stack.enter_context(PiCameraSource(settings.frame_size))
+            observer = None
+            if args.preview:
+                from otopark.preview import LivePreview
+
+                preview = LivePreview(settings.preview_port, settings.votes_required)
+                observer = stack.enter_context(preview).show
             logger.info("Sistem çalışıyor. Durdurmak için Ctrl+C.")
-            run(camera, monitor, settings.frame_interval_seconds)
+            run(camera, monitor, settings.frame_interval_seconds, observer)
     except KeyboardInterrupt:
         logger.info("Sistem durduruldu.")
     finally:
